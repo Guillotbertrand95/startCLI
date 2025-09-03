@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
-// --------------------- Utilitaires ---------------------
+// Utilitaire : créer un dossier s'il n'existe pas
 function createDirIfNotExists(dirPath) {
 	if (!fs.existsSync(dirPath)) {
 		fs.mkdirSync(dirPath, { recursive: true });
@@ -14,6 +14,7 @@ function createDirIfNotExists(dirPath) {
 	}
 }
 
+// Utilitaire : créer un fichier s'il n'existe pas
 function writeFileIfNotExists(filePath, content) {
 	if (!fs.existsSync(filePath)) {
 		fs.writeFileSync(filePath, content.trimStart());
@@ -23,11 +24,12 @@ function writeFileIfNotExists(filePath, content) {
 	}
 }
 
+// Fonction pour créer plusieurs dossiers
 function createDirs(baseDir, dirs) {
 	dirs.forEach((dir) => createDirIfNotExists(path.join(baseDir, dir)));
 }
 
-// --------------------- Contenus Frontend ---------------------
+// Contenus communs et frontend
 const gitignoreContent = `
 node_modules
 .env
@@ -37,7 +39,6 @@ dist
 const frontendEnvContent = `
 # Variables d'environnement frontend
 VITE_API_URL=http://localhost:5000
-VITE_API_URL_PROD=https://tempoback-3.onrender.com
 `;
 
 const frontendReadmeContent = `
@@ -77,8 +78,13 @@ const frontendAppJsxContent = `
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
-function Home() { return <h2>Accueil</h2>; }
-function About() { return <h2>À propos</h2>; }
+function Home() {
+  return <h2>Accueil</h2>;
+}
+
+function About() {
+  return <h2>À propos</h2>;
+}
 
 function App() {
   return (
@@ -95,59 +101,36 @@ function App() {
 export default App;
 `;
 
-const frontendApiJsContent = `
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL, // Dev
-});
-
-export const setProd = () => {
-  API.defaults.baseURL = import.meta.env.VITE_API_URL_PROD;
-};
-
-export default API;
-`;
-
-// --------------------- Contenus Backend ---------------------
+// Backend
 const backendEnvContent = `
 # Variables d'environnement backend
 PORT=5000
 DB_HOST=localhost
 DB_USER=root
 DB_PASS=password
-FRONTEND_URL=http://localhost:5173
 `;
 
 const backendReadmeContent = `
 # Backend
-Serveur Express avec middlewares cors et morgan.
+Serveur Express basique avec middlewares cors et morgan
 `;
 
+// Backend app.js et server.js
 const appJsContent = `
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const authRoutes = require('./routes/auth');
-const profileRoutes = require('./routes/ProfileRoutes');
-const activityRoutes = require('./routes/ActivityRoutes');
-
 const app = express();
 
-// CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  methods: ["GET","POST","PUT","DELETE"],
-  credentials: true
-}));
-
+// Middlewares globaux
+app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/activities', activityRoutes);
+// Exemple route simple
+app.get('/', (req, res) => {
+  res.send('Hello from backend!');
+});
 
 module.exports = app;
 `;
@@ -165,30 +148,40 @@ app.listen(PORT, () => {
 });
 `;
 
-// --------------------- Commande CLI ---------------------
+// Commande create <projectName>
 program
 	.command("create <projectName>")
-	.description("Créer un projet React + Vite avec backend Express complet")
+	.description("Créer une base de projet React avec backend et frontend")
 	.action((projectName) => {
 		const targetDir = path.join(process.cwd(), projectName);
+
+		// Création dossier principal
 		createDirIfNotExists(targetDir);
 
-		// ---------- FRONTEND ----------
+		// ========== FRONTEND ==========
 		const frontendDir = path.join(targetDir, "frontend");
+
+		// Créer dossier frontend vide
 		createDirIfNotExists(frontendDir);
+
+		// 1. Initialisation vite + react (force overwrite si besoin)
 		console.log("Initialisation frontend avec Vite + React...");
 		execSync("npm create vite@latest . -- --template react --force", {
 			cwd: frontendDir,
 			stdio: "inherit",
 		});
+
+		// 2. Installation des dépendances frontend
 		execSync("npm install", { cwd: frontendDir, stdio: "inherit" });
-		execSync("npm install sass react-router-dom axios", {
+		execSync("npm install sass react-router-dom", {
 			cwd: frontendDir,
 			stdio: "inherit",
 		});
 
+		// 3. Création des dossiers personnalisés frontend
 		createDirIfNotExists(path.join(frontendDir, "public"));
 		createDirIfNotExists(path.join(frontendDir, "public", "assets"));
+
 		const frontendSrcDir = path.join(frontendDir, "src");
 		createDirs(frontendSrcDir, [
 			"assets",
@@ -199,6 +192,7 @@ program
 			"animations",
 		]);
 
+		// 4. Création fichiers frontend custom (écrasement possible)
 		writeFileIfNotExists(
 			path.join(frontendDir, ".gitignore"),
 			gitignoreContent
@@ -223,14 +217,12 @@ program
 			path.join(frontendSrcDir, "App.jsx"),
 			frontendAppJsxContent
 		);
-		writeFileIfNotExists(
-			path.join(frontendSrcDir, "api/index.js"),
-			frontendApiJsContent
-		);
 
-		// ---------- BACKEND ----------
+		// ========== BACKEND ==========
 		const backendDir = path.join(targetDir, "backend");
 		createDirIfNotExists(backendDir);
+
+		// Création dossiers backend complets
 		const backendDirs = [
 			"config",
 			"controllers",
@@ -243,6 +235,7 @@ program
 		];
 		createDirs(backendDir, backendDirs);
 
+		// Création fichiers backend
 		writeFileIfNotExists(
 			path.join(backendDir, ".gitignore"),
 			gitignoreContent
@@ -258,7 +251,18 @@ program
 			serverJsContent
 		);
 
+		// Initialiser npm et installer dépendances backend
+		console.log("Initialisation backend...");
+		execSync("npm init -y", { cwd: backendDir, stdio: "inherit" });
+		execSync("npm install express dotenv cors morgan", {
+			cwd: backendDir,
+			stdio: "inherit",
+		});
+
 		console.log(`\nProjet "${projectName}" créé avec succès ! 🚀`);
+		console.log(
+			`Structure frontend (Vite + React) et backend prête avec dépendances installées.`
+		);
 	});
 
 program.parse(process.argv);
